@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>PinkSpa - PWA Manager</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1e3c2c">
+  <!-- Firebase SDKs vía CDN -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #f0f4f0;
+      padding-bottom: 70px;
+    }
+    .app-header {
+      background: #1e3c2c;
+      color: white;
+      padding: 1rem;
+      text-align: center;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .app-header h1 { font-size: 1.4rem; }
+    .status {
+      font-size: 0.7rem;
+      background: #2ecc71;
+      display: inline-block;
+      padding: 0.2rem 0.8rem;
+      border-radius: 20px;
+      margin-top: 0.3rem;
+    }
+    .tabs {
+      display: flex;
+      background: white;
+      border-bottom: 1px solid #ccc;
+      position: sticky;
+      top: 80px;
+      z-index: 10;
+      flex-wrap: wrap;
+    }
+    .tab-btn {
+      flex: 1;
+      background: #f9f9f9;
+      border: none;
+      padding: 0.8rem 0;
+      font-weight: bold;
+      cursor: pointer;
+      font-size: 0.8rem;
+    }
+    .tab-btn.active {
+      background: #1e3c2c;
+      color: white;
+      border-bottom: 3px solid #f1c40f;
+    }
+    .tab-content {
+      display: none;
+      padding: 1rem;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .tab-content.active { display: block; }
+    .card {
+      background: white;
+      border-radius: 16px;
+      padding: 1rem;
+      margin-bottom: 1.2rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+    .card h2 {
+      font-size: 1.2rem;
+      margin-bottom: 0.8rem;
+      color: #1e3c2c;
+      border-left: 4px solid #f1c40f;
+      padding-left: 0.5rem;
+    }
+    input, select, textarea {
+      width: 100%;
+      padding: 0.6rem;
+      border: 1px solid #ccc;
+      border-radius: 12px;
+      font-size: 0.9rem;
+      margin-bottom: 0.5rem;
+    }
+    button {
+      background: #1e3c2c;
+      color: white;
+      border: none;
+      padding: 0.6rem 1.2rem;
+      border-radius: 30px;
+      font-weight: bold;
+      cursor: pointer;
+      margin-top: 0.5rem;
+    }
+    button.secondary { background: #7f8c8d; }
+    button.danger { background: #c0392b; }
+    .item-list { margin-top: 1rem; max-height: 300px; overflow-y: auto; }
+    .list-item {
+      background: #f8f9fa;
+      padding: 0.6rem;
+      border-radius: 12px;
+      margin-bottom: 0.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+    .hour-slot {
+      background: #f1f2f6;
+      border-radius: 8px;
+      padding: 0.5rem;
+      margin-bottom: 0.4rem;
+    }
+    footer {
+      text-align: center;
+      font-size: 0.7rem;
+      color: #6c757d;
+      margin-top: 1rem;
+    }
+  </style>
+</head>
+<body>
+<div class="app-header">
+  <h1>🌸 PinkSpa Manager Pro</h1>
+  <div id="status" class="status">🟢 Online</div>
+</div>
+
+<div class="tabs">
+  <button class="tab-btn active" data-tab="agenda">📅 Agenda</button>
+  <button class="tab-btn" data-tab="clientes">👥 Clientes</button>
+  <button class="tab-btn" data-tab="empleados">👩‍💼 Empleados</button>
+  <button class="tab-btn" data-tab="servicios">💆 Servicios</button>
+  <button class="tab-btn" data-tab="inventario">📦 Inventario</button>
+  <button class="tab-btn" data-tab="facturacion">💰 Facturación</button>
+  <button class="tab-btn" data-tab="reportes">📊 Reportes</button>
+  <button class="tab-btn" data-tab="marketing">📢 Marketing</button>
+  <button class="tab-btn" data-tab="config">⚙️ Config</button>
+</div>
+
+<!-- =========================== AGENDA =========================== -->
+<div id="agenda" class="tab-content active">
+  <div class="card">
+    <h2>Nueva Reserva</h2>
+    <div class="grid-2">
+      <div><label>Cliente</label><select id="agendaCliente"></select></div>
+      <div><label>Empleado</label><select id="agendaEmpleado"></select></div>
+      <div><label>Servicio</label><select id="agendaServicio"></select></div>
+      <div><label>Fecha y hora</label><input type="datetime-local" id="agendaFecha"></div>
+    </div>
+    <button id="btnAgregarCita">Agendar cita</button>
+  </div>
+  <div class="card">
+    <h2>Próximas Citas</h2>
+    <div id="calendarioView"></div>
+  </div>
+</div>
+
+<!-- =========================== CLIENTES =========================== -->
+<div id="clientes" class="tab-content">
+  <div class="card">
+    <h2>Registrar Cliente</h2>
+    <div class="grid-2">
+      <input type="text" id="cliNombre" placeholder="Nombre completo">
+      <input type="email" id="cliEmail" placeholder="Email">
+      <input type="tel" id="cliTelefono" placeholder="Teléfono">
+      <textarea id="cliNotas" placeholder="Alergias / preferencias"></textarea>
+    </div>
+    <button id="btnAddCliente">➕ Agregar</button>
+  </div>
+  <div class="card">
+    <h2>Lista de Clientes</h2>
+    <div id="listaClientes" class="item-list"></div>
+  </div>
+</div>
+
+<!-- =========================== EMPLEADOS =========================== -->
+<div id="empleados" class="tab-content">
+  <div class="card">
+    <h2>Gestionar Empleados</h2>
+    <div class="grid-2">
+      <input type="text" id="empNombre" placeholder="Nombre">
+      <input type="text" id="empComision" placeholder="% Comisión (ej: 10)">
+    </div>
+    <button id="btnAddEmpleado">➕ Registrar</button>
+  </div>
+  <div class="card">
+    <h2>Empleados y Comisiones</h2>
+    <div id="listaEmpleados" class="item-list"></div>
+  </div>
+</div>
+
+<!-- =========================== SERVICIOS =========================== -->
+<div id="servicios" class="tab-content">
+  <div class="card">
+    <h2>Servicio o Paquete</h2>
+    <div class="grid-2">
+      <input type="text" id="servNombre" placeholder="Nombre">
+      <input type="number" id="servPrecio" placeholder="Precio">
+      <input type="number" id="servDuracion" placeholder="Duración (min)">
+      <select id="servTipo"><option value="servicio">Servicio</option><option value="paquete">Paquete</option><option value="membresia">Membresía</option></select>
+    </div>
+    <button id="btnAddServicio">➕ Guardar</button>
+  </div>
+  <div class="card">
+    <h2>Listado</h2>
+    <div id="listaServicios" class="item-list"></div>
+  </div>
+</div>
+
+<!-- =========================== INVENTARIO =========================== -->
+<div id="inventario" class="tab-content">
+  <div class="card">
+    <h2>Producto / Insumo</h2>
+    <div class="grid-2">
+      <input type="text" id="prodNombre" placeholder="Producto">
+      <input type="number" id="prodStock" placeholder="Stock actual">
+      <input type="text" id="prodUnidad" placeholder="Unidad (ml, pza)">
+    </div>
+    <button id="btnAddProducto">➕ Agregar</button>
+  </div>
+  <div class="card">
+    <h2>Inventario</h2>
+    <div id="listaInventario" class="item-list"></div>
+  </div>
+</div>
+
+<!-- =========================== FACTURACIÓN =========================== -->
+<div id="facturacion" class="tab-content">
+  <div class="card">
+    <h2>Registrar Pago</h2>
+    <select id="factCliente"></select>
+    <select id="factServicio"></select>
+    <input type="number" id="factMonto" placeholder="Monto pagado">
+    <select id="factMetodo"><option>Efectivo</option><option>Tarjeta</option><option>Transferencia</option></select>
+    <button id="btnRegistrarPago">💵 Registrar pago</button>
+  </div>
+  <div class="card">
+    <h2>Últimos pagos</h2>
+    <div id="listaPagos" class="item-list"></div>
+    <button id="btnCerrarCaja" class="secondary">Cierre de caja (simular)</button>
+  </div>
+</div>
+
+<!-- =========================== REPORTES =========================== -->
+<div id="reportes" class="tab-content">
+  <div class="card">
+    <h2>Indicadores clave</h2>
+    <p>📅 Ingresos hoy: $<span id="reportIngresosHoy">0</span></p>
+    <p>💆 Servicios más vendidos: <span id="topServicios">-</span></p>
+    <p>👥 Clientes recurrentes: <span id="cliRecurrentes">0</span></p>
+    <p>📈 Ocupación agenda: <span id="tasaOcupacion">0%</span></p>
+  </div>
+</div>
+
+<!-- =========================== MARKETING =========================== -->
+<div id="marketing" class="tab-content">
+  <div class="card">
+    <h2>Envío de promoción</h2>
+    <textarea id="promoMensaje" rows="2" placeholder="Mensaje promocional..."></textarea>
+    <button id="btnEnviarPromo">📨 Enviar a todos los clientes (simular)</button>
+  </div>
+</div>
+
+<!-- =========================== CONFIGURACIÓN =========================== -->
+<div id="config" class="tab-content">
+  <div class="card">
+    <h2>Reglas del negocio</h2>
+    <label>Política cancelación (horas):</label><input type="number" id="confCancelHoras" value="4">
+    <label>Tiempo mínimo anticipación (min):</label><input type="number" id="confAnticipacion" value="60">
+    <button id="btnGuardarConfig">Guardar reglas</button>
+  </div>
+  <div class="card">
+    <h2>Integraciones</h2>
+    <button id="btnSimularGoogleCalendar">🔗 Sincronizar con Google Calendar (demo)</button>
+  </div>
+</div>
+
+<footer>Datos sincronizados con Firebase Firestore - PinkSpa</footer>
+
+<script>
+  // ------------------------------------------------------------
+  // CONFIGURACIÓN DE FIREBASE (TUS DATOS)
+  // ------------------------------------------------------------
+  const firebaseConfig = {
+    apiKey: "AIzaSyB_SvGVcTE6MFlmHc8F3PKK03Pt-7OS-cI",
+    authDomain: "pinkspa-5b083.firebaseapp.com",
+    projectId: "pinkspa-5b083",
+    storageBucket: "pinkspa-5b083.firebasestorage.app",
+    messagingSenderId: "598242506804",
+    appId: "1:598242506804:web:a73ac7252e9519acdb3261",
+    measurementId: "G-YZZX7FWV2J"
+  };
+
+  // Inicializar Firebase
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+  const auth = firebase.auth();
+
+  // Habilitar persistencia offline (sincroniza cuando recupera conexión)
+  db.enablePersistence({ synchronizeTabs: true })
+    .catch(err => console.warn("Persistencia:", err.code));
+
+  // Autenticación anónima automática (para identificar datos)
+  auth.signInAnonymously().catch(error => console.error("Auth error:", error));
+
+  // Referencias a colecciones
+  const clientesRef = db.collection('clientes');
+  const empleadosRef = db.collection('empleados');
+  const serviciosRef = db.collection('servicios');
+  const inventarioRef = db.collection('inventario');
+  const citasRef = db.collection('citas');
+  const pagosRef = db.collection('pagos');
+  const configRef = db.collection('config');
+
+  // ------------------------------------------------------------
+  // FUNCIONES CRUD GENÉRICAS
+  // ------------------------------------------------------------
+  async function getAll(collection) {
+    const snapshot = await collection.get();
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  }
+
+  async function addItem(collection, data) {
+    const docRef = await collection.add({ ...data, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+    return { id: docRef.id, ...data };
+  }
+
+  async function deleteItem(collection, id) {
+    await collection.doc(id).delete();
+  }
+
+  // ------------------------------------------------------------
+  // RENDERIZADO DE CADA MÓDULO
+  // ------------------------------------------------------------
+  async function renderClientes() {
+    const clientes = await getAll(clientesRef);
+    const container = document.getElementById('listaClientes');
+    if (!clientes.length) { container.innerHTML = '<p>Sin clientes</p>'; return; }
+    container.innerHTML = clientes.map(c => `
+      <div class="list-item">
+        ${c.nombre} - ${c.email || ''}<br><small>${c.notas || ''}</small>
+        <button class="danger" data-id="${c.id}" data-tipo="cliente">Eliminar</button>
+      </div>`).join('');
+    document.querySelectorAll('[data-tipo="cliente"]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        await deleteItem(clientesRef, btn.dataset.id);
+        renderClientes();
+        cargarSelectores();
+      });
+    });
+  }
+
+  async function renderEmpleados() {
+    const empleados = await getAll(empleadosRef);
+    const container = document.getElementById('listaEmpleados');
+    if (!empleados.length) { container.innerHTML = '<p>Sin empleados</p>'; return; }
+    container.innerHTML = empleados.map(e => `
+      <div class="list-item">
+        ${e.nombre} - Comisión ${e.comision}%
+        <button class="danger" data-id="${e.id}" data-tipo="empleado">Eliminar</button>
+      </div>`).join('');
+    document.querySelectorAll('[data-tipo="empleado"]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        await deleteItem(empleadosRef, btn.dataset.id);
+        renderEmpleados();
+        cargarSelectores();
+      });
+    });
+  }
+
+  async function renderServicios() {
+    const servicios = await getAll(serviciosRef);
+    const container = document.getElementById('listaServicios');
+    if (!servicios.length) { container.innerHTML = '<p>Sin servicios</p>'; return; }
+    container.innerHTML = servicios.map(s => `
+      <div class="list-item">
+        ${s.nombre} - $${s.precio} (${s.duracion} min) [${s.tipo}]
+        <button class="danger" data-id="${s.id}" data-tipo="servicio">Eliminar</button>
+      </div>`).join('');
+    document.querySelectorAll('[data-tipo="servicio"]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        await deleteItem(serviciosRef, btn.dataset.id);
+        renderServicios();
+        cargarSelectores();
+      });
+    });
+  }
+
+  async function renderInventario() {
+    const prods = await getAll(inventarioRef);
+    const container = document.getElementById('listaInventario');
+    if (!prods.length) { container.innerHTML = '<p>Sin productos</p>'; return; }
+    container.innerHTML = prods.map(p => `
+      <div class="list-item">
+        ${p.nombre} - Stock: ${p.stock} ${p.unidad || ''}
+        <button class="danger" data-id="${p.id}" data-tipo="inventario">Eliminar</button>
+      </div>`).join('');
+    document.querySelectorAll('[data-tipo="inventario"]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        await deleteItem(inventarioRef, btn.dataset.id);
+        renderInventario();
+      });
+    });
+  }
+
+  async function renderCitas() {
+    const citas = await getAll(citasRef);
+    const clientes = await getAll(clientesRef);
+    const servicios = await getAll(serviciosRef);
+    const empleados = await getAll(empleadosRef);
+    const container = document.getElementById('calendarioView');
+    if (!citas.length) { container.innerHTML = '<p>No hay citas programadas</p>'; return; }
+    let html = '';
+    citas.sort((a,b) => new Date(a.fecha) - new Date(b.fecha)).forEach(c => {
+      const cliente = clientes.find(cl => cl.id === c.clienteId)?.nombre || '?';
+      const servicio = servicios.find(s => s.id === c.servicioId)?.nombre || '?';
+      const empleado = empleados.find(e => e.id === c.empleadoId)?.nombre || '?';
+      html += `<div class="hour-slot">📅 ${new Date(c.fecha).toLocaleString()} <br> <strong>${cliente}</strong> - ${servicio}<br>👤 ${empleado}<button class="danger" data-id="${c.id}" data-tipo="cita">❌ Eliminar</button></div>`;
+    });
+    container.innerHTML = html;
+    document.querySelectorAll('[data-tipo="cita"]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        await deleteItem(citasRef, btn.dataset.id);
+        renderCitas();
+      });
+    });
+  }
+
+  async function renderPagos() {
+    const pagos = await getAll(pagosRef);
+    const container = document.getElementById('listaPagos');
+    if (!pagos.length) { container.innerHTML = '<p>Sin pagos registrados</p>'; return; }
+    container.innerHTML = pagos.map(p => `
+      <div class="list-item">
+        Cliente ID ${p.clienteId} - $${p.monto} (${p.metodo}) - ${new Date(p.fecha).toLocaleString()}
+      </div>`).join('');
+  }
+
+  async function renderReportes() {
+    const pagos = await getAll(pagosRef);
+    const citas = await getAll(citasRef);
+    const hoy = new Date().toDateString();
+    const ingresosHoy = pagos.filter(p => new Date(p.fecha).toDateString() === hoy).reduce((sum, p) => sum + p.monto, 0);
+    document.getElementById('reportIngresosHoy').innerText = ingresosHoy;
+    document.getElementById('topServicios').innerText = 'En desarrollo';
+    const clientesUnicos = new Set(pagos.map(p => p.clienteId)).size;
+    document.getElementById('cliRecurrentes').innerText = clientesUnicos;
+    const ocupacion = citas.length > 0 ? Math.min(100, (citas.length/20)*100) : 0;
+    document.getElementById('tasaOcupacion').innerText = ocupacion.toFixed(0);
+  }
+
+  async function cargarSelectores() {
+    const clientes = await getAll(clientesRef);
+    const empleados = await getAll(empleadosRef);
+    const servicios = await getAll(serviciosRef);
+    const cliSelect = document.getElementById('agendaCliente');
+    const empSelect = document.getElementById('agendaEmpleado');
+    const servSelect = document.getElementById('agendaServicio');
+    const factCli = document.getElementById('factCliente');
+    const factServ = document.getElementById('factServicio');
+    cliSelect.innerHTML = '<option value="">Seleccione</option>';
+    factCli.innerHTML = '<option value="">Seleccione</option>';
+    clientes.forEach(c => {
+      cliSelect.innerHTML += `<option value="${c.id}">${c.nombre}</option>`;
+      factCli.innerHTML += `<option value="${c.id}">${c.nombre}</option>`;
+    });
+    empSelect.innerHTML = '<option value="">Seleccione</option>';
+    empleados.forEach(e => empSelect.innerHTML += `<option value="${e.id}">${e.nombre} (${e.comision}%)</option>`);
+    servSelect.innerHTML = ''; factServ.innerHTML = '<option value="">Seleccione</option>';
+    servicios.forEach(s => {
+      servSelect.innerHTML += `<option value="${s.id}">${s.nombre} - $${s.precio}</option>`;
+      factServ.innerHTML += `<option value="${s.id}">${s.nombre}</option>`;
+    });
+  }
+
+  // ------------------------------------------------------------
+  // EVENTOS DE BOTONES (AÑADIR)
+  // ------------------------------------------------------------
+  document.getElementById('btnAddCliente')?.addEventListener('click', async () => {
+    const nombre = document.getElementById('cliNombre').value;
+    if (!nombre) return alert('Nombre requerido');
+    await addItem(clientesRef, {
+      nombre,
+      email: document.getElementById('cliEmail').value,
+      telefono: document.getElementById('cliTelefono').value,
+      notas: document.getElementById('cliNotas').value
+    });
+    renderClientes();
+    cargarSelectores();
+    document.getElementById('cliNombre').value = '';
+    document.getElementById('cliEmail').value = '';
+    document.getElementById('cliTelefono').value = '';
+    document.getElementById('cliNotas').value = '';
+  });
+
+  document.getElementById('btnAddEmpleado')?.addEventListener('click', async () => {
+    const nombre = document.getElementById('empNombre').value;
+    if (!nombre) return alert('Nombre requerido');
+    await addItem(empleadosRef, {
+      nombre,
+      comision: parseInt(document.getElementById('empComision').value) || 0
+    });
+    renderEmpleados();
+    cargarSelectores();
+    document.getElementById('empNombre').value = '';
+    document.getElementById('empComision').value = '';
+  });
+
+  document.getElementById('btnAddServicio')?.addEventListener('click', async () => {
+    const nombre = document.getElementById('servNombre').value;
+    if (!nombre) return alert('Nombre requerido');
+    await addItem(serviciosRef, {
+      nombre,
+      precio: parseFloat(document.getElementById('servPrecio').value) || 0,
+      duracion: parseInt(document.getElementById('servDuracion').value) || 30,
+      tipo: document.getElementById('servTipo').value
+    });
+    renderServicios();
+    cargarSelectores();
+    document.getElementById('servNombre').value = '';
+    document.getElementById('servPrecio').value = '';
+    document.getElementById('servDuracion').value = '';
+  });
+
+  document.getElementById('btnAddProducto')?.addEventListener('click', async () => {
+    const nombre = document.getElementById('prodNombre').value;
+    if (!nombre) return alert('Nombre requerido');
+    await addItem(inventarioRef, {
+      nombre,
+      stock: parseInt(document.getElementById('prodStock').value) || 0,
+      unidad: document.getElementById('prodUnidad').value
+    });
+    renderInventario();
+    document.getElementById('prodNombre').value = '';
+    document.getElementById('prodStock').value = '';
+    document.getElementById('prodUnidad').value = '';
+  });
+
+  document.getElementById('btnAgregarCita')?.addEventListener('click', async () => {
+    const clienteId = document.getElementById('agendaCliente').value;
+    const empleadoId = document.getElementById('agendaEmpleado').value;
+    const servicioId = document.getElementById('agendaServicio').value;
+    const fecha = document.getElementById('agendaFecha').value;
+    if (!clienteId || !empleadoId || !servicioId || !fecha) return alert('Complete todos los campos');
+    await addItem(citasRef, { clienteId, empleadoId, servicioId, fecha });
+    renderCitas();
+    document.getElementById('agendaFecha').value = '';
+  });
+
+  document.getElementById('btnRegistrarPago')?.addEventListener('click', async () => {
+    const clienteId = document.getElementById('factCliente').value;
+    const servicioId = document.getElementById('factServicio').value;
+    const monto = parseFloat(document.getElementById('factMonto').value);
+    if (!clienteId || !monto) return alert('Cliente y monto requeridos');
+    await addItem(pagosRef, {
+      clienteId,
+      servicioId: servicioId || null,
+      monto,
+      metodo: document.getElementById('factMetodo').value,
+      fecha: new Date().toISOString()
+    });
+    renderPagos();
+    renderReportes();
+    document.getElementById('factMonto').value = '';
+  });
+
+  document.getElementById('btnCerrarCaja')?.addEventListener('click', async () => {
+    const pagos = await getAll(pagosRef);
+    const hoy = new Date().toDateString();
+    const totalHoy = pagos.filter(p => new Date(p.fecha).toDateString() === hoy).reduce((sum,p)=>sum+p.monto,0);
+    alert(`Cierre de caja simulado. Total del día: $${totalHoy}`);
+  });
+
+  document.getElementById('btnEnviarPromo')?.addEventListener('click', async () => {
+    const clientes = await getAll(clientesRef);
+    const mensaje = document.getElementById('promoMensaje').value;
+    if (!mensaje) return alert('Escribe un mensaje');
+    alert(`Promoción simulada enviada a ${clientes.length} clientes:\n"${mensaje}"`);
+  });
+
+  document.getElementById('btnGuardarConfig')?.addEventListener('click', async () => {
+    const cancelHoras = parseInt(document.getElementById('confCancelHoras').value);
+    const anticipacion = parseInt(document.getElementById('confAnticipacion').value);
+    await configRef.doc('reglas').set({ cancelHoras, anticipacion });
+    alert('Configuración guardada en Firebase');
+  });
+
+  document.getElementById('btnSimularGoogleCalendar')?.addEventListener('click', () => alert('Simulación de Google Calendar'));
+
+  async function cargarConfig() {
+    const doc = await configRef.doc('reglas').get();
+    if (doc.exists) {
+      const { cancelHoras, anticipacion } = doc.data();
+      document.getElementById('confCancelHoras').value = cancelHoras;
+      document.getElementById('confAnticipacion').value = anticipacion;
+    }
+  }
+
+  // ------------------------------------------------------------
+  // INICIALIZACIÓN
+  // ------------------------------------------------------------
+  window.addEventListener('DOMContentLoaded', async () => {
+    await cargarConfig();
+    // Escuchar cambios en tiempo real
+    clientesRef.onSnapshot(() => { renderClientes(); cargarSelectores(); renderReportes(); });
+    empleadosRef.onSnapshot(() => { renderEmpleados(); cargarSelectores(); });
+    serviciosRef.onSnapshot(() => { renderServicios(); cargarSelectores(); });
+    inventarioRef.onSnapshot(renderInventario);
+    citasRef.onSnapshot(() => { renderCitas(); renderReportes(); });
+    pagosRef.onSnapshot(() => { renderPagos(); renderReportes(); });
+    await cargarSelectores();
+    await renderClientes();
+    await renderEmpleados();
+    await renderServicios();
+    await renderInventario();
+    await renderCitas();
+    await renderPagos();
+    await renderReportes();
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js').catch(console.log);
+    }
+    window.addEventListener('online', () => document.getElementById('status').innerHTML = '🟢 Online');
+    window.addEventListener('offline', () => document.getElementById('status').innerHTML = '🔴 Offline');
+  });
+
+  // TABS
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+      document.getElementById(btn.dataset.tab).classList.add('active');
+    });
+  });
+</script>
+</body>
+</html>
