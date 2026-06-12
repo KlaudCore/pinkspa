@@ -1,0 +1,9 @@
+{
+  "name": "SPA Manager Pro",
+  "short_name": "SpaPro",
+  "description": "Administración completa de spa con Firebase",
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#1e3c2c",
+  "background_color": "#f0f4f0"
+}
